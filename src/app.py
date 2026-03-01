@@ -8,6 +8,7 @@ for extracurricular activities at Mergington High School.
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 import os
 from pathlib import Path
 
@@ -88,9 +89,21 @@ def get_activities():
     return activities
 
 
-@app.post("/activities/{activity_name}/signup")
-def signup_for_activity(activity_name: str, email: str):
-    """Sign up a student for an activity"""
+class SignupRequest(BaseModel):
+    email: str
+
+
+@app.post("/activities/{activity_name}/signup", status_code=201)
+def signup_for_activity(activity_name: str, request: SignupRequest):
+    """Sign up a student for an activity.
+
+    The `email` is provided in the JSON request body.  Previously the API
+    accepted a query parameter; the new model makes it easier for clients and
+    tests to supply structured data.  A `201 Created` status code is returned
+    on success, matching standard REST conventions.
+    """
+    email = request.email
+
     # Validate activity exists
     if activity_name not in activities:
         raise HTTPException(status_code=404, detail="Activity not found")
@@ -107,9 +120,19 @@ def signup_for_activity(activity_name: str, email: str):
     return {"message": f"Signed up {email} for {activity_name}"}
 
 
-@app.delete("/activities/{activity_name}/signup")
-def remove_participant(activity_name: str, email: str):
-    """Unregister a student from an activity"""
+from fastapi import Response
+
+
+@app.delete("/activities/{activity_name}/signup", status_code=204)
+def remove_participant(activity_name: str, request: SignupRequest):
+    """Unregister a student from an activity.
+
+    Accepts the `email` in the JSON body and returns 204 No Content on
+    successful removal.  Using a body aligns with the POST endpoint and
+    avoids awkward query parameters for a delete operation.
+    """
+    email = request.email
+
     # Validate activity exists
     if activity_name not in activities:
         raise HTTPException(status_code=404, detail="Activity not found")
@@ -121,4 +144,4 @@ def remove_participant(activity_name: str, email: str):
         raise HTTPException(status_code=404, detail="Student not signed up for this activity")
 
     activity["participants"].remove(email)
-    return {"message": f"Removed {email} from {activity_name}"}
+    return Response(status_code=204)
